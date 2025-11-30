@@ -1,5 +1,5 @@
 //@version=6
-indicator("FVG + ZLMA + BB", shorttitle="FlowSuite Overlay", overlay=true, max_bars_back=500)
+indicator("Liquidity + FVG + ZLMA + BB", shorttitle="FlowSuite Overlay", overlay=true, max_bars_back=500)
 
 // =====================
 // Inputs
@@ -53,3 +53,25 @@ if showFvg
             var box tempBear = na
             tempBear := box.new(bar_index[i], high[i-1], bar_index[i-1], high[i], bgcolor=color.new(color.red, 85), border_color=color.new(color.red, 0))
             array.push(bearBoxes, tempBear)
+// =====================
+// Liquidity Zones – Scan 50 candles back
+// =====================
+int Left_Bars  = input.int(7, "Pivot Left Bars", minval=1)
+int Right_Bars = input.int(7, "Pivot Right Bars", minval=1)
+liqLookback = input.int(50, "Liquidity Lookback Candles", minval=1)
+
+var box[] highLiqBoxes = array.new_box()
+var box[] lowLiqBoxes  = array.new_box()
+
+for i = 0 to liqLookback - 1
+    // Detect sell liquidity (pivot highs)
+    ph = ta.pivothigh(Left_Bars, Right_Bars)[i]
+    if not na(ph)
+        b = box.new(bar_index[i + Right_Bars], ph, bar_index[i], ph, bgcolor=color.new(color.purple, 85), border_color=color.new(color.purple, 0))
+        array.push(highLiqBoxes, b)
+    
+    // Detect buy liquidity (pivot lows)
+    pl = ta.pivotlow(Left_Bars, Right_Bars)[i]
+    if not na(pl)
+        b = box.new(bar_index[i + Right_Bars], pl, bar_index[i], pl, bgcolor=color.new(color.blue, 85), border_color=color.new(color.blue, 0))
+        array.push(lowLiqBoxes, b)
