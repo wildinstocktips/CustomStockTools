@@ -1,0 +1,55 @@
+//@version=6
+indicator("FVG + ZLMA + BB", shorttitle="FlowSuite Overlay", overlay=true, max_bars_back=500)
+
+// =====================
+// Inputs
+// =====================
+src       = input.source(close, "Source")
+zlmaLen   = input.int(20, "ZLMA Length")
+bbLength  = input.int(20, "BB Length")
+bbMult    = input.float(2.0, "BB StdDev Multiplier")
+showFvg   = input.bool(true, "Show Fair Value Gaps")
+
+// =====================
+// Zero-Lag Moving Average
+// =====================
+lag        = math.floor((zlmaLen - 1) / 2)
+zeroLagSrc = src + (src - src[lag])
+zlma       = ta.ema(zeroLagSrc, zlmaLen)
+plot(zlma, title="ZLMA", color=color.new(color.yellow, 0), linewidth=2)
+
+// =====================
+// Bollinger Bands
+// =====================
+basis = ta.sma(src, bbLength)
+dev   = ta.stdev(src, bbLength)
+upper = basis + dev * bbMult
+lower = basis - dev * bbMult
+
+plot(upper, title="BB Upper", color=color.new(color.gray, 50))
+plot(basis, title="BB Basis", color=color.new(color.gray, 60))
+plot(lower, title="BB Lower", color=color.new(color.gray, 50))
+
+// =====================
+// Fixed Fair Value Gaps (FVG) – Extended Lookback
+// =====================
+var box[] bullBoxes = array.new_box()
+var box[] bearBoxes = array.new_box()
+fvgLookback = input.int(100, "FVG Lookback Candles", minval=5)
+
+if showFvg
+    // Scan last N candles for bullish FVG
+    for i = 2 to fvgLookback
+        bullFVG = low[i-1] > high[i]
+        if bullFVG
+            var box tempBull = na
+            tempBull := box.new(bar_index[i], low[i-1], bar_index[i-1], low[i], bgcolor=color.new(color.green, 85), border_color=color.new(color.green, 0))
+            array.push(bullBoxes, tempBull)
+
+    // Scan last N candles for bearish FVG
+    for i = 2 to fvgLookback
+        bearFVG = high[i-1] < low[i]
+        if bearFVG
+            var box tempBear = na
+            tempBear := box.new(bar_index[i], high[i-1], bar_index[i-1], high[i], bgcolor=color.new(color.red, 85), border_color=color.new(color.red, 0))
+            array.push(bearBoxes, tempBear)
