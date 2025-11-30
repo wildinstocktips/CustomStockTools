@@ -1,0 +1,36 @@
+//@version=6
+indicator("Zero-Lag Moving Average (ZLMA)", shorttitle="ZLMA", overlay=true)
+
+// ===============================
+// 1. INPUTS
+// ===============================
+i_src        = input.source(close, "Source")
+i_length     = input.int(20, "Length (Periods)", minval=1)
+i_bull_color = input.color(#00BFA5, "Rising Color")
+i_bear_color = input.color(#FF1744, "Falling Color")
+i_line_width = input.int(2, "Line Width", minval=1)
+
+// ===============================
+// 2. ZLMA CALCULATION
+// ===============================
+
+// Lag = half length
+lag = math.floor((i_length - 1) / 2)
+
+// Zero-lag source (must *not* use var!)
+zeroLagSrc = i_src + (i_src - i_src[lag])
+
+// Zero-Lag Moving Average
+zlma_value = ta.ema(zeroLagSrc, i_length)
+
+// ===============================
+// 3. PLOT
+// ===============================
+zlma_rising = zlma_value > zlma_value[1]
+zlma_color  = zlma_rising ? i_bull_color : i_bear_color
+
+plot(zlma_value,
+     "ZLMA",
+     color = zlma_color,
+     linewidth = i_line_width,
+     style = plot.style_line)
