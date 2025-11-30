@@ -1,0 +1,117 @@
+//@version=6
+indicator("FVG Detector with Lookback & Mitigation", shorttitle="Smart FVG", overlay=true)
+
+// =================================================================================
+// 1. INPUTS & CONFIGURATION
+// =================================================================================
+i_lookback      = input.int(200, title="Lookback Bars (Max FVG Age)", minval=10)
+i_extend_bars   = input.int(500, title="Future Extension Bars (Right)", minval=0)
+i_min_size_pips = input.float(0.0, title="Min FVG Size (in Pips/Points)", minval=0.0)
+i_show_midline  = input.bool(true, title="Show FVG Midline (50%)")
+
+bull_color_fill   = input.color(#008855, title="Bull FVG Fill Color", inline="bull")
+bull_color_border = input.color(#008855, title="Bull FVG Border Color", inline="bull")
+
+bear_color_fill   = input.color(#FF0055, title="Bear FVG Fill Color", inline="bear")
+bear_color_border = input.color(#FF0055, title="Bear FVG Border Color", inline="bear")
+
+// =================================================================================
+// 2. DATA STRUCTURE
+// =================================================================================
+type FVG
+    float high
+    float low
+    bool  is_bull
+    int   bar_idx
+    box   box_id
+    line  line_id
+
+var fvgs = array.new<FVG>(0)
+
+// =================================================================================
+// 3. FVG DETECTION LOGIC
+// =================================================================================
+var float bull_fvg_low = 0.0
+var float bull_fvg_high = 0.0
+is_bull_fvg = low > high[2]
+if is_bull_fvg
+    bull_fvg_low := high[2]
+    bull_fvg_high := low
+
+var float bear_fvg_low = 0.0
+var float bear_fvg_high = 0.0
+is_bear_fvg = high < low[2]
+if is_bear_fvg
+    bear_fvg_low := high
+    bear_fvg_high := low[2]
+
+is_new_fvg = is_bull_fvg or is_bear_fvg
+
+min_gap_size = i_min_size_pips / syminfo.mintick
+
+// =================================================================================
+// 4. MITIGATION & REMOVAL LOGIC (DESCENDING ITERATION USING WHILE)
+// =================================================================================
+fvgs_len = array.size(fvgs)
+if fvgs_len > 0
+    i = fvgs_len - 1
+    while i >= 0
+        fvg = array.get(fvgs, i)
+
+        is_mitigated = fvg.is_bull ? (low < fvg.low) : (high > fvg.high)
+        is_expired = (bar_index - fvg.bar_idx) > i_lookback
+
+        if is_mitigated or is_expired
+            // delete drawings
+            box.delete(fvg.box_id)
+            if i_show_midline
+                line.delete(fvg.line_id)
+            // remove record
+            array.remove(fvgs, i)
+        else
+            // extend drawings to the right
+            box.set_right(fvg.box_id, bar_index + i_extend_bars)
+            if i_show_midline
+                line.set_x2(fvg.line_id, bar_index + i_extend_bars)
+
+        i := i - 1
+
+// =================================================================================
+// 5. DRAWING NEW FVGs
+// =================================================================================
+if is_new_fvg
+    // compute size using previously assigned vars
+    fvg_size = is_bull_fvg ? (bull_fvg_high - bull_fvg_low) : (bear_fvg_low - bear_fvg_high)
+
+    if math.abs(fvg_size) * (1 / syminfo.mintick) >= i_min_size_pips
+        fvg_max = is_bull_fvg ? bull_fvg_high : bear_fvg_high
+        fvg_min = is_bull_fvg ? bull_fvg_low  : bear_fvg_low
+        col_fill = is_bull_fvg ? bull_color_fill : bear_color_fill
+        col_border = is_bull_fvg ? bull_color_border : bear_color_border
+
+        // create chart.points for robust box.new usage
+        topLeftPoint     = chart.point.from_index(bar_index[2], fvg_max)
+        bottomRightPoint = chart.point.from_index(bar_index + i_extend_bars, fvg_min)
+
+        // box.new using positional overload that accepts chart.point objects
+        new_box = box.new(topLeftPoint, bottomRightPoint, col_border, 1, bgcolor = color.new(col_fill, 85), force_overlay = true)
+
+        // midline (force overlay)
+        line new_line = na
+        if i_show_midline
+            mid_val = (fvg_max + fvg_min) / 2
+            new_line := line.new(bar_index[2], mid_val, bar_index + i_extend_bars, mid_val, color = color.rgb(255, 255, 255, 50), style = line.style_dashed, force_overlay = true)
+
+        // push record
+        array.push(fvgs, FVG.new(fvg_max, fvg_min, is_bull_fvg, bar_index, new_box, new_line))
+
+// =================================================================================
+// 6. ALERTS
+// =================================================================================
+is_new_fvg_created = array.size(fvgs) > nz(array.size(fvgs)[1], 0)
+
+alertcondition(is_bull_fvg and is_new_fvg_created, title="New Bullish FVG", message="New Bullish FVG detected.")
+alertcondition(is_bear_fvg and is_new_fvg_created, title="New Bearish FVG", message="New Bearish FVG detected.")
+
+// optional hidden plot to avoid pane switching
+plot(na, display=display.none)
