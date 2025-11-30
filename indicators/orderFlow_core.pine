@@ -1,0 +1,58 @@
+//@version=5
+indicator("OFT Histogram – Fast/Long History + Volume Colors (fixed)", overlay=false)
+
+//---------------------------------------------------------
+// INPUTS
+//---------------------------------------------------------
+length     = input.int(150, "Long-Term Lookback (Trend Baseline)")
+smoothing  = input.int(3, "Fast Reaction Smoothing")
+vol_window = input.int(50, "Volume Avg Window", minval=1)
+vol_factor = input.float(1.0, "Volume Sensitivity (multiplier)", minval=0.1, step=0.1)
+
+//---------------------------------------------------------
+// ORDER FLOW CORE LOGIC
+//---------------------------------------------------------
+get_order_flow() =>
+    up_vol   = ta.rising(close, 1) ? volume : 0
+    down_vol = ta.falling(close, 1) ? volume : 0
+    net_vol  = up_vol - down_vol
+
+    price_flow = close - open
+    hl_range   = high - low
+    hl_range == 0 ? 0 : (net_vol * price_flow) / hl_range
+
+raw_flow     = get_order_flow()
+smooth_flow  = ta.ema(raw_flow, smoothing)
+flow_ma      = ta.ema(smooth_flow, length)
+
+//---------------------------------------------------------
+// VOLUME INTENSITY (SMA based)
+//---------------------------------------------------------
+avg_vol = ta.sma(volume, vol_window)
+high_volume = volume > (avg_vol * vol_factor)
+
+//---------------------------------------------------------
+// TREND STATE (fast responding)
+//---------------------------------------------------------
+bullish = smooth_flow > 0
+bearish = smooth_flow < 0
+
+//---------------------------------------------------------
+// COLOR LOGIC (volume + flow direction)
+//---------------------------------------------------------
+hist_color = 
+     bullish and high_volume ? color.new(color.green, 0) :
+     bullish and not high_volume ? color.new(color.lime, 40) :
+     bearish and high_volume ? color.new(color.red, 0) :
+     color.new(color.maroon, 40)
+
+//---------------------------------------------------------
+// HISTOGRAM
+//---------------------------------------------------------
+plot(smooth_flow,
+     title="OFT Histogram",
+     style=plot.style_columns,
+     color=hist_color,
+     linewidth=3)
+
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dotted)
