@@ -1,0 +1,57 @@
+//@version=6
+indicator("Custom Optimized 1H VWAP v6", overlay=true, timeframe="", timeframe_gaps=true)
+
+// --- Inputs ---
+anchor_period = input.string("Week", "VWAP Reset Period", options=["Day", "Week", "Month", "Year"], tooltip="On the 1H chart, 'Week' or 'Month' usually provides better trend context than 'Day'.")
+src = input.source(hlc3, "Source")
+show_bands = input.bool(true, "Show Deviation Bands")
+mult1 = input.float(1.0, "Band 1 Multiplier", step=0.1)
+mult2 = input.float(2.0, "Band 2 Multiplier", step=0.1)
+
+// --- Logic ---
+// Function to determine if the anchor period has changed
+is_new_period(res) =>
+    t = time(res)
+    ta.change(t) != 0
+
+new_session = switch anchor_period
+    "Day"   => is_new_period("D")
+    "Week"  => is_new_period("W")
+    "Month" => is_new_period("M")
+    "Year"  => is_new_period("12M")
+    => false
+
+// VWAP Calculation using math namespace for v6 compatibility
+var float vwap_sum = 0.0
+var float volume_sum = 0.0
+var float vwap_sq_sum = 0.0
+
+if new_session
+    vwap_sum := src * volume
+    volume_sum := volume
+    vwap_sq_sum := math.pow(src, 2) * volume
+else
+    vwap_sum := vwap_sum + (src * volume)
+    volume_sum := volume_sum + volume
+    vwap_sq_sum := vwap_sq_sum + (math.pow(src, 2) * volume)
+
+my_vwap = vwap_sum / volume_sum
+
+// Deviation Bands Calculation using math namespace
+dev = math.sqrt(math.max(0, (vwap_sq_sum / volume_sum) - math.pow(my_vwap, 2)))
+upper_band1 = my_vwap + (dev * mult1)
+lower_band1 = my_vwap - (dev * mult1)
+upper_band2 = my_vwap + (dev * mult2)
+lower_band2 = my_vwap - (dev * mult2)
+
+// --- Plotting ---
+plot(my_vwap, title="VWAP", color=color.new(#2962FF, 0), linewidth=2)
+
+// Bands 1
+p1 = plot(show_bands ? upper_band1 : na, title="Upper Band 1", color=color.new(color.green, 50))
+p2 = plot(show_bands ? lower_band1 : na, title="Lower Band 1", color=color.new(color.red, 50))
+fill(p1, p2, color=color.new(#2962FF, 95), title="Bands Background")
+
+// Bands 2
+plot(show_bands ? upper_band2 : na, title="Upper Band 2", color=color.new(color.green, 80), style=plot.style_linebr)
+plot(show_bands ? lower_band2 : na, title="Lower Band 2", color=color.new(color.red, 80), style=plot.style_linebr)
