@@ -1,8 +1,5 @@
 # Stock Research Checklist
 > **Disclaimer:** This checklist is for educational purposes only and does not constitute financial advice.
-
-![Stock Market Header](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Strategy Logo")
-
 ---
 
 ## 1. Idea Validation
@@ -97,8 +94,3 @@
 - [ ] Exit conditions defined
 
 ---
-
-### Resources & References
-![Analysis Tools][tools-image]
-
-[tools-image]: https://octodex.github.com/images/dojocat.jpg "Analysis Tools"
